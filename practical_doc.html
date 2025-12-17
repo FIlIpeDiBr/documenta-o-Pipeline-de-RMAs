@@ -1,0 +1,155 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Documentação Prática – Pipeline de RMAs</title>
+<style>
+body { font-family: Arial, sans-serif; line-height: 1.6; margin: 20px; }
+h1 { color: #0d47a1; }
+h2 { color: #1565c0; }
+h3 { color: #1e88e5; }
+table { border-collapse: collapse; width: 100%; margin-top: 10px; }
+th, td { border: 1px solid #ccc; padding: 4px 6px; text-align: left; }
+th { background-color: #f0f0f0; }
+code { background-color: #f5f5f5; padding: 2px 4px; border-radius: 3px; }
+img.diagram { max-width: 100%; height: auto; margin: 10px 0; border: 1px solid #ccc; }
+</style>
+</head>
+<body>
+<h1>Documentação Prática – Pipeline de RMAs (v1)</h1>
+<p>Esta documentação destina‑se ao <strong>usuário final</strong> (contador ou operador) que irá utilizar o sistema para processar documentos fiscais e gerar Relatórios de Movimentação de Ativos (RMAs). Ela descreve o fluxo de trabalho, como acessar o sistema, como operar as principais funcionalidades e como personalizar modelos através de <em>tags</em> e <em>flags</em>. As informações técnicas internas do código não são abordadas aqui.</p>
+
+<h2>Visão geral do sistema</h2>
+<p>O pipeline de RMAs é um conjunto de scripts em Google Apps Script que automatizam a extração de dados de balancetes e demonstrações do resultado do exercício (DRE), estruturam essas informações em planilhas, calculam indicadores e geram relatórios personalizados a partir de modelos em Google Docs. Há duas interfaces para o usuário:</p>
+<ul>
+<li><strong>Planilha Google “RMA Pipeline”</strong> – contém abas de <em>Processamento</em>, <em>BalancoBase</em>, <em>DreBase</em>, <em>Indicadores</em> e outras. Um menu personalizado (RMA Pipeline) reúne as ações principais.</li>
+<li><strong>Portal HTML</strong> – página integrada à planilha que permite executar ações rápidas (processar entrada, extrair dados, gerar relatórios, gerenciar grupos) e visualizar gráficos de indicadores.</li>
+</ul>
+<p>A figura a seguir resume as interações de alto nível entre os componentes do sistema. O contador utiliza tanto a planilha quanto o portal. O pipeline se integra ao Google Drive para ler arquivos de entrada e salvar documentos gerados, ao Google Docs para criar relatórios a partir de modelos e à API da OpenAI para interpretar o conteúdo dos documentos e gerar indicadores.</p>
+<p><img class="diagram" src="data:image/png;base64,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" alt="Diagrama de contexto" /></p>
+
+<h2>Pré‑requisitos e configuração inicial</h2>
+<ul>
+<li>É necessário ter uma conta Google com acesso ao Google Sheets, Google Docs e Google Drive.</li>
+<li>Certifique‑se de que a planilha “RMA Pipeline” está instalada e aberta. Ao abrir a planilha, o menu <strong>RMA Pipeline</strong> deve aparecer automaticamente.</li>
+<li>Na aba <em>Config</em> da planilha, defina as configurações básicas, como:
+  <ul>
+    <li><code>ENTRADA_FOLDER_ID</code> – ID da pasta no Google Drive onde serão depositados os arquivos PDF/Excel a serem processados.</li>
+    <li><code>PROCESSADO_FOLDER_ID</code> – (opcional) ID da pasta onde os arquivos processados serão movidos.</li>
+    <li>IDs dos modelos de relatórios (código e nome) usados para balancete, DRE e RMA.</li>
+    <li>Chave da API da OpenAI (<code>OPENAI_API_KEY</code>) definida nas propriedades do projeto Apps Script (o usuário final não precisa editar essa propriedade).</li>
+  </ul>
+</li>
+<li>Caso utilize o portal HTML, ele pode ser aberto pelo próprio menu (<em>Painel de Gráficos (Indicadores)</em>) ou pela URL de execução do web app.</li>
+</ul>
+
+<h2>Fluxo de trabalho</h2>
+<p>A seguir descrevemos passo a passo como utilizar o pipeline de RMAs.</p>
+
+<h3>1. Processar arquivos de entrada</h3>
+<p>Os documentos (balancetes ou DRE) devem ser salvos na pasta indicada em <code>ENTRADA_FOLDER_ID</code> (por exemplo, arquivos PDF enviados pelo contador). Na planilha, utilize a opção <em>Processar arquivos de entrada</em> do menu para listar todos os novos arquivos. Cada arquivo é registrado na aba <em>Processamento</em> com metadados preliminares (empresa, mês, ano e tipo) extraídos do nome do arquivo.</p>
+<p>A aba <em>Processamento</em> possui as seguintes colunas:</p>
+<table>
+<tr><th>Coluna</th><th>Descrição</th></tr>
+<tr><td>fileId</td><td>ID do arquivo no Drive</td></tr>
+<tr><td>fileName</td><td>Nome do arquivo</td></tr>
+<tr><td>empresa</td><td>Nome da empresa (inferido do nome do arquivo)</td></tr>
+<tr><td>mes</td><td>Mês de competência</td></tr>
+<tr><td>ano</td><td>Ano de competência</td></tr>
+<tr><td>tipo</td><td>BALANCO ou DRE (se detectado)</td></tr>
+<tr><td>status</td><td>Estado do processamento: <code>PENDENTE_EXTRAÇÃO</code>, <code>EXTRAINDO</code>, <code>PROCESSANDO</code>, <code>PROCESSADO</code> ou <code>ERRO</code></td></tr>
+<tr><td>mensagem</td><td>Mensagem de erro (quando ocorre)</td></tr>
+<tr><td>data</td><td>Data em que o arquivo foi cadastrado</td></tr>
+</table>
+
+<h3>2. Extrair e estruturar dados</h3>
+<p>Com os arquivos cadastrados, selecione <em>Extrair e estruturar dados</em> para processar os documentos pendentes. O pipeline irá:</p>
+<ul>
+<li>Ler cada arquivo pendente (PDF ou Excel) e extrair seu texto;</li>
+<li>Determinar se o documento é um balancete ou uma DRE (caso o campo <em>tipo</em> não esteja preenchido);</li>
+<li>Enviar o conteúdo para a API da OpenAI para que a IA estruture os dados em linhas de balancete (conta, saldo anterior, débito, crédito, saldo atual) ou DRE (categoria, valor atual e valor anterior);</li>
+<li>Salvar as linhas estruturadas nas abas <em>BalancoBase</em> e <em>DreBase</em> da planilha;</li>
+<li>Atualizar o status para <code>PROCESSADO</code> ou registrar a mensagem de erro.</li>
+</ul>
+<p>Utilize <em>Extrair (todos exceto processados)</em> para reprocessar linhas que falharam.</p>
+
+<h3>3. Gerenciar grupos de empresas</h3>
+<p>Em alguns casos é útil agrupar diversas empresas sob um mesmo grupo (por exemplo, para consolidar resultados). A opção <em>Gerenciar grupos</em> abre um formulário onde é possível atribuir um nome de grupo a cada empresa. Esse grupo será utilizado na geração de relatórios consolidados e indicadores de grupos.</p>
+
+<h3>4. Calcular percentuais de DRE</h3>
+<p>Depois que a DRE estiver preenchida, execute <em>Calcular percentuais DRE</em> para recalcular as colunas de análise vertical (<code>av atual (%)</code>, <code>av anterior (%)</code>) e análise horizontal (<code>ah (%)</code>). Esta operação percorre todas as linhas da aba <em>DreBase</em> e escreve os percentuais conforme os valores das categorias.</p>
+
+<h3>5. Gerar indicadores</h3>
+<p>Para cada empresa (ou grupo), o pipeline pode gerar um conjunto de indicadores financeiros (EBITDA, liquidez, endividamento, etc.). Selecione uma linha na aba <em>Processamento</em> e clique em <em>Gerar Indicadores</em> para calcular indicadores para aquela empresa/mês/ano. A opção <em>Gerar Indicadores pendentes</em> recalcula indicadores de todas as empresas que ainda não possuem linha na aba <em>Indicadores</em>. Para grupos, use <em>Gerar Indicadores de grupos</em>.</p>
+<p>Os indicadores gerados são armazenados na aba <em>Indicadores</em>, onde cada linha representa (mês, ano, empresa) e cada coluna representa um indicador.</p>
+
+<h3>6. Gerar relatórios</h3>
+<p>O pipeline permite gerar relatórios em formato Google Docs a partir de modelos.</p>
+<ul>
+<li><em>Relatório Individual (linha selecionada)</em> – gera um documento com balancete, DRE e consolidado para a empresa/mês/ano selecionados. Será solicitado o modelo desejado; os modelos são definidos na aba <em>Config</em> (nome e ID do documento molde).</li>
+<li><em>Relatório de Grupo (linha selecionada)</em> – gera um único documento contendo seções para cada integrante do grupo e, opcionalmente, um consolidado. Os integrantes são determinados de acordo com o agrupamento cadastrado.</li>
+</ul>
+<p>Ao gerar um relatório, o sistema copia o modelo, substitui as <em>tags</em> e preenche as tabelas com dados de balancete e DRE. O documento final será salvo no Google Drive. Se houver uma coluna “link” na planilha, o link é atualizado.</p>
+
+<h3>7. Painel de indicadores</h3>
+<p>A opção <em>Painel de Gráficos (Indicadores)</em> abre uma barra lateral (ou um web app em tela cheia) com gráficos interativos baseados na aba <em>Indicadores</em>. Você pode:</p>
+<ul>
+<li>Selecionar quais indicadores (séries) mostrar;</li>
+<li>Escolher as entidades e períodos que aparecem nas linhas;</li>
+<li>Configurar título e tamanho das fontes;</li>
+<li>Exportar o gráfico como imagem.</li>
+</ul>
+
+<h2>Guia de uso da planilha</h2>
+<p>Além das abas de base (<em>BalancoBase</em>, <em>DreBase</em>, <em>Indicadores</em>) o pipeline utiliza abas de trabalho (<em>Balanco</em>, <em>DRE</em>, <em>Integrantes</em>, <em>Textos</em>) para a geração de relatórios. Estas abas são preenchidas automaticamente pela função <code>prepararPeriodo</code> antes de gerar o RMA e normalmente não precisam ser editadas manualmente. As principais abas são:</p>
+<ul>
+<li><strong>Processamento</strong> – cadastro dos arquivos a processar e controle de status.</li>
+<li><strong>BalancoBase</strong> – base consolidada de balancetes. Cada linha contém os saldos detalhados e as contas sintéticas são calculadas automaticamente.</li>
+<li><strong>DreBase</strong> – base consolidada da DRE com valores atuais, valores anteriores e percentuais.</li>
+<li><strong>Indicadores</strong> – indicadores financeiros calculados para empresas e grupos.</li>
+<li><strong>Config</strong> – configurações gerais e cadastro de modelos de relatórios.</li>
+</ul>
+
+<h2>Guia de tags e flags</h2>
+<p>Para personalizar os modelos de relatórios (Google Docs), utilize <strong>tags</strong> e <strong>marcadores</strong> que são substituídos automaticamente. As tags são escritas entre chaves duplas (<code>{...}</code>) e as flags aparecem em marcadores de bloco ou tabela. A tabela abaixo resume as principais tags disponíveis para o usuário:</p>
+<table>
+<tr><th>Tag</th><th>Descrição (curta)</th></tr>
+<tr><td><code>{empresa}</code></td><td>Nome da empresa ou “Consolidado – Grupo” no caso de grupos.</td></tr>
+<tr><td><code>{mes}</code></td><td>Mês de competência (01–12).</td></tr>
+<tr><td><code>{ano}</code></td><td>Ano de competência (quatro dígitos).</td></tr>
+<tr><td><code>{grupo}</code></td><td>Nome do grupo ao qual a empresa pertence (vazio se individual).</td></tr>
+</table>
+<p>Além das tags simples, os modelos podem incluir marcadores para tabelas e blocos repetitivos:</p>
+<ul>
+<li><strong>Marcador de tabela</strong>: <code>[[ (p:origem,modo) ]]</code> deve preceder uma tabela modelo. Durante a geração, a tabela modelo será substituída por uma tabela preenchida com dados. Os parâmetros são:
+  <ul>
+    <li><code>p:balancobase</code> – preenche a tabela com dados de balancete.</li>
+    <li><code>p:drebase</code> – preenche a tabela com dados da DRE.</li>
+    <li><code>completa</code> – (opcional) usa todas as linhas detalhadas do balancete; o padrão <code>resumida</code> inclui somente as contas sintéticas. Para DRE não há diferença.</li>
+  </ul>
+  <p>Exemplo: <code>[[ (p:balancobase,completa) ]]</code> insere uma tabela completa do balancete. O cabeçalho da tabela modelo deve conter rótulos de colunas compreensíveis (por exemplo, “Conta”, “Valor período anterior”, “Valor período atual”).</p>
+</li>
+<li><strong>Marcador de bloco de grupo</strong>: <code>&lt;&lt;(flags)&gt;&gt;</code> delimita um trecho do modelo que será replicado para cada integrante de um grupo. Dentro do bloco podem ser usadas as tags simples. As <em>flags</em> definem se o consolidado será incluído:
+  <ul>
+    <li><code>consolidar</code> ou <code>consolidado</code> – inclui um bloco adicional com os dados consolidados do grupo.</li>
+    <li><code>semconsolidado</code>, <code>semconsolidar</code>, <code>naoconsolidar</code>, etc. – gera blocos apenas para os integrantes, sem o consolidado.</li>
+    <li>Se nenhuma flag for fornecida, o consolidado é incluído por padrão.</li>
+  </ul>
+</li>
+</ul>
+<p>Ao ajustar um modelo, mantenha a tabela modelo imediatamente após o marcador <code>[[ ( … ) ]]</code> e evite inserir textos longos dentro das células – apenas os cabeçalhos são necessários. Use as tags simples onde quiser que apareçam dados dinâmicos.</p>
+
+<h2>Dicas e boas práticas</h2>
+<ul>
+<li>Mantenha os nomes de empresa consistentes ao nomear arquivos (use sempre a mesma grafia); isso facilita a inferência automática e evita duplicidade.</li>
+<li>Antes de gerar relatórios, verifique se as abas <em>BalancoBase</em> e <em>DreBase</em> possuem dados para a empresa/período. Caso contrário, reexecute a extração.</li>
+<li>Para criar novos modelos de relatório, duplique um modelo existente no Google Docs, personalize o layout e cadastre o nome/ID na aba <em>Config</em>.</li>
+<li>Use <em>Gerar Indicadores pendentes</em> periodicamente para atualizar a aba de indicadores. Os gráficos do painel se baseiam nesse conteúdo.</li>
+<li>Em caso de erros, consulte a coluna <em>mensagem</em> na aba <em>Processamento</em>. Erros comuns incluem problemas de conversão de PDF ou conteúdo não reconhecido.</li>
+</ul>
+
+<p>Esta documentação cobre o uso básico do pipeline de RMAs. Para detalhes sobre o funcionamento interno, consulte a documentação técnica.</p>
+
+</body>
+</html>
